@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KODE LMS · 강의실</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> KODE LMS</div>
+    <div class="who">
+      <span id="who-name"></span>
+      <button class="btn sm ghost" id="btn-logout">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 목록 화면 -->
+    <div id="view-list">
+      <h1 class="h1">내 강의</h1>
+      <p class="sub" id="overall-sub">강의를 선택해 시청하세요. 시청한 만큼 진도가 자동 저장됩니다.</p>
+      <div class="lecture-list" id="lecture-list"></div>
+      <p id="empty" class="muted hidden" style="text-align:center;padding:40px">아직 등록된 강의가 없습니다.</p>
+    </div>
+
+    <!-- 플레이어 화면 -->
+    <div id="view-player" class="hidden">
+      <button class="btn sm ghost" id="btn-back" style="margin-bottom:14px">← 목록으로</button>
+      <div class="grid cols-2" style="grid-template-columns:1.8fr 1fr">
+        <div>
+          <div class="player-wrap">
+            <video id="video" controls playsinline preload="metadata"></video>
+          </div>
+          <h2 class="h1" id="p-title" style="margin-top:14px"></h2>
+          <p class="muted small" id="p-desc"></p>
+        </div>
+        <div class="card">
+          <div class="section-title">📊 내 진도</div>
+          <div class="progress-readout">
+            <div>
+              <div class="big"><span id="p-percent">0</span>%</div>
+              <div class="muted small" id="p-status">시청 중…</div>
+            </div>
+          </div>
+          <div class="bar" id="p-bar" style="margin-top:12px"><span style="width:0%"></span></div>
+          <div class="kv" style="margin-top:18px">
+            <div class="k">시청 시간</div><div id="p-watched">0:00</div>
+            <div class="k">전체 길이</div><div id="p-duration">-</div>
+            <div class="k">완료 기준</div><div id="p-threshold">-</div>
+          </div>
+          <p class="small muted" style="margin-top:16px">
+            ※ 빨리감기로 건너뛴 구간은 진도에 포함되지 않습니다. 실제로 재생된 구간만 인정됩니다.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/student.js"></script>
+</body>
+</html>
