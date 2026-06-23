@@ -83,7 +83,7 @@ adminRouter.delete('/students/:id', async (req, res) => {
 async function buildMatrix() {
   const [sRes, lRes, pRes] = await Promise.all([
     supabase.from('lms_students').select('id,name,active,team').order('team', { ascending: true, nullsFirst: false }).order('name', { ascending: true }),
-    supabase.from('lms_lectures').select('id,title,order_index,duration_seconds').order('order_index', { ascending: true }),
+    supabase.from('lms_lectures').select('id,title,order_index,duration_seconds').eq('active', true).order('order_index', { ascending: true }),
     supabase.from('lms_progress').select('student_id,lecture_id,percent,completed,watched_seconds,updated_at'),
   ]);
   const firstErr = sRes.error || lRes.error || pRes.error;

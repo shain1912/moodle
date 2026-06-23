@@ -11,6 +11,7 @@ lecturesRouter.get('/', requireAuth, async (req, res) => {
   const { data: lectures, error } = await supabase
     .from('lms_lectures')
     .select('id,title,description,order_index,duration_seconds,size_bytes,created_at')
+    .eq('active', true)
     .order('order_index', { ascending: true })
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
