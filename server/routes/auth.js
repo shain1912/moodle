@@ -7,56 +7,49 @@ export const authRouter = Router();
 
 const strip = (s) => String(s ?? '').replace(/\s/g, '');
 
-// 로그인 시 학교(테넌트) 확정: orgSlug 가 오면 그 학교, 없으면 활성 학교가 정확히 1개일 때만 그 학교.
-async function resolveOrg(orgSlug) {
-  const q = supabase.from('lms_orgs').select('id,slug,name').eq('active', true);
-  const { data, error } = orgSlug ? await q.eq('slug', orgSlug).maybeSingle() : await q;
-  if (error) return { error: 'DB 오류: ' + error.message };
-  if (orgSlug) {
-    if (!data) return { error: '존재하지 않는 학교입니다.' };
-    return { org: data };
-  }
-  const list = data || [];
-  if (list.length === 1) return { org: list[0] };
-  return { error: '학교를 선택하세요.', needOrg: true };
-}
-
-// ── 학생 로그인: (학교 선택) + 이름으로 명단 검증. 학번/ PIN 은 있으면 추가 사용.
+// ── 학생 로그인: 이름 우선. 학교 선택 없이 전체(활성)에서 이름 검색 →
+//   1명이면 바로 로그인. 서로 다른 학교에 같은 이름이 둘 이상일 때만 학교 선택 요구.
 authRouter.post('/student/login', async (req, res) => {
   const name = String(req.body.name ?? '').trim();
-  const studentNo = String(req.body.studentNo ?? '').trim();
   const pin = String(req.body.pin ?? '').trim();
-  const orgSlug = String(req.body.orgSlug ?? '').trim();
+  const orgSlug = String(req.body.orgSlug ?? '').trim(); // 동명이인 disambiguation 시에만 전달됨
   if (!name) return res.status(400).json({ error: '이름을 입력하세요.' });
 
-  const r = await resolveOrg(orgSlug);
-  if (r.error) return res.status(r.needOrg ? 400 : 401).json({ error: r.error, needOrg: r.needOrg });
-  const org = r.org;
-
-  let student = null;
-  if (studentNo) {
-    // 학번이 주어지면 학교 내에서 학번+이름으로 검증
-    const { data, error } = await supabase
-      .from('lms_students').select('*').eq('org_id', org.id).eq('student_no', studentNo).maybeSingle();
-    if (error) return res.status(500).json({ error: 'DB 오류: ' + error.message });
-    if (!data || !data.active || strip(data.name) !== strip(name)) {
-      return res.status(401).json({ error: '학번 또는 이름이 명단과 일치하지 않습니다.' });
-    }
-    student = data;
-  } else {
-    // 학교 내에서 이름만으로 로그인 (공백 무시 비교 → "김 봄"="김봄")
-    const { data, error } = await supabase
-      .from('lms_students').select('*').eq('org_id', org.id).eq('active', true);
-    if (error) return res.status(500).json({ error: 'DB 오류: ' + error.message });
-    const matches = (data || []).filter((s) => strip(s.name) === strip(name));
-    if (matches.length === 0) {
-      return res.status(401).json({ error: '명단에 없는 이름입니다. 학교와 이름을 정확히 확인하세요.' });
-    }
-    if (matches.length > 1) {
-      return res.status(409).json({ error: '같은 이름이 여러 명이라 이름만으로 로그인할 수 없습니다. 관리자에게 문의하세요.' });
-    }
-    student = matches[0];
+  // 활성 학교 목록
+  const { data: orgs, error: oe } = await supabase.from('lms_orgs').select('id,slug,name').eq('active', true);
+  if (oe) return res.status(500).json({ error: 'DB 오류: ' + oe.message });
+  const orgById = new Map((orgs || []).map((o) => [o.id, o]));
+  let scopeIds = (orgs || []).map((o) => o.id);
+  if (orgSlug) {
+    const picked = (orgs || []).find((o) => o.slug === orgSlug);
+    if (!picked) return res.status(401).json({ error: '존재하지 않는 학교입니다.' });
+    scopeIds = [picked.id];
   }
+  if (!scopeIds.length) return res.status(401).json({ error: '등록된 학교가 없습니다.' });
+
+  // 이름으로 검색 (공백 무시 비교 → "김 봄"="김봄")
+  const { data: studs, error: se } = await supabase
+    .from('lms_students').select('*').eq('active', true).in('org_id', scopeIds);
+  if (se) return res.status(500).json({ error: 'DB 오류: ' + se.message });
+  const matches = (studs || []).filter((s) => strip(s.name) === strip(name));
+
+  if (matches.length === 0) {
+    return res.status(401).json({ error: '명단에 없는 이름입니다. 정확히 입력했는지 확인하세요.' });
+  }
+  if (matches.length > 1) {
+    const matchOrgIds = [...new Set(matches.map((m) => m.org_id))];
+    if (matchOrgIds.length > 1) {
+      // 서로 다른 학교에 동명 → 학교 선택 요구
+      const opts = matchOrgIds.map((id) => orgById.get(id)).filter(Boolean).map((o) => ({ slug: o.slug, name: o.name }));
+      return res.status(409).json({ error: '같은 이름이 여러 곳에 있어요. 소속을 선택해 주세요.', needOrg: true, orgs: opts });
+    }
+    // 한 학교 안에 동명이인 → 이름만으론 불가
+    return res.status(409).json({ error: '같은 이름이 여러 명이라 이름만으로 로그인할 수 없습니다. 관리자에게 문의하세요.' });
+  }
+
+  const student = matches[0];
+  const org = orgById.get(student.org_id);
+  if (!org) return res.status(401).json({ error: '학교 정보를 찾을 수 없습니다.' });
 
   if (student.pin) {
     if (!pin) return res.status(401).json({ error: 'PIN을 입력하세요.', needPin: true });
