@@ -24,6 +24,19 @@ tabTeacher.onclick = () => show('teacher');
 
 const msgS = document.getElementById('msg-student');
 const pinWrap = document.getElementById('pin-wrap');
+const orgWrap = document.getElementById('org-wrap');
+const orgSel = document.getElementById('s-org');
+
+// 학교 목록 — 2개 이상일 때만 선택 드롭다운 표시(1개면 자동 적용)
+(async () => {
+  try {
+    const { orgs } = await api('/api/orgs');
+    if (Array.isArray(orgs) && orgs.length) {
+      orgSel.innerHTML = orgs.map((o) => `<option value="${o.slug}">${o.name}</option>`).join('');
+      if (orgs.length > 1) orgWrap.classList.remove('hidden');
+    }
+  } catch { /* 학교 목록 실패 시 단일학교 가정 */ }
+})();
 
 formStudent.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -31,13 +44,15 @@ formStudent.addEventListener('submit', async (e) => {
   msgS.textContent = '';
   const name = document.getElementById('s-name').value;
   const pin = document.getElementById('s-pin').value;
+  const orgSlug = orgSel.value || '';
   try {
-    await api('/api/auth/student/login', { method: 'POST', body: { name, pin } });
+    await api('/api/auth/student/login', { method: 'POST', body: { name, pin, orgSlug } });
     location.href = '/student.html';
   } catch (err) {
     msgS.className = 'msg error';
     msgS.textContent = err.message;
     if (err.data?.needPin) pinWrap.classList.remove('hidden');
+    if (err.data?.needOrg) orgWrap.classList.remove('hidden');
   }
 });
 

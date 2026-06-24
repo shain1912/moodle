@@ -4,7 +4,7 @@ const me = await getMe();
 if (!me) location.href = '/';
 else if (me.role !== 'teacher') location.href = '/student.html';
 
-document.getElementById('who-name').textContent = me.name;
+document.getElementById('who-name').textContent = me.orgName ? `${me.name} · ${me.orgName}` : me.name;
 document.getElementById('btn-logout').onclick = logout;
 
 // ───────────────────────── 탭 ─────────────────────────
@@ -185,22 +185,35 @@ async function loadLectures() {
     const item = document.createElement('div');
     item.className = 'lecture-item';
     item.style.cursor = 'default';
+    const secTag = l.section ? `<span class="badge prog" style="margin-right:6px">${escapeHtml(l.section)}</span>` : '';
     item.innerHTML = `
       <div class="idx">${i + 1}</div>
       <div class="body">
-        <div class="t">${escapeHtml(l.title)}</div>
+        <div class="t">${secTag}${escapeHtml(l.title)}</div>
         <div class="d">${l.duration_seconds ? fmtTime(l.duration_seconds) : '-'} · ${fmtSize(l.size_bytes)}</div>
       </div>
       <div class="row">
+        <button class="btn sm ghost" data-sec title="섹션 변경">섹션</button>
         <button class="btn sm ghost" data-up title="위로">▲</button>
         <button class="btn sm ghost" data-down title="아래로">▼</button>
-        <button class="btn sm danger" data-del>삭제</button>
+        <button class="btn sm danger" data-del title="이 학교 목록에서 내리기">내리기</button>
       </div>`;
+    item.querySelector('[data-sec]').onclick = () => editSection(l);
     item.querySelector('[data-up]').onclick = () => reorder(lectures, i, -1);
     item.querySelector('[data-down]').onclick = () => reorder(lectures, i, +1);
     item.querySelector('[data-del]').onclick = () => delLecture(l);
     list.appendChild(item);
   });
+}
+
+async function editSection(l) {
+  const section = prompt(`"${l.title}" 강의의 섹션 이름을 입력하세요. (비우면 미분류)`, l.section || '');
+  if (section === null) return;
+  try {
+    await api(`/api/lectures/${l.id}`, { method: 'PATCH', body: { section: section.trim() } });
+    toast('섹션이 변경되었습니다.', 'ok');
+    loadLectures();
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function reorder(lectures, i, dir) {
@@ -213,10 +226,10 @@ async function reorder(lectures, i, dir) {
 }
 
 async function delLecture(l) {
-  if (!confirm(`"${l.title}" 강의를 삭제할까요?\n영상 파일과 학생 진도 기록도 함께 삭제됩니다.`)) return;
+  if (!confirm(`"${l.title}" 강의를 이 학교 목록에서 내릴까요?\n· 우리 학교 학생들의 이 강의 진도 기록은 삭제됩니다.\n· 영상 원본은 보존됩니다(다른 학교가 사용할 수 있음).`)) return;
   try {
     await api(`/api/lectures/${l.id}`, { method: 'DELETE' });
-    toast('삭제되었습니다.', 'ok');
+    toast('목록에서 내렸습니다.', 'ok');
     loadLectures();
   } catch (e) { toast(e.message, 'error'); }
 }

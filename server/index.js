@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 import { config } from './config.js';
 import { supabase } from './supabase.js';
-import { authenticate } from './auth.js';
+import { authenticate, attachOrg } from './auth.js';
 import { authRouter } from './routes/auth.js';
 import { lecturesRouter } from './routes/lectures.js';
 import { progressRouter } from './routes/progress.js';
@@ -26,12 +26,21 @@ if (config.isProd) {
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(authenticate);
+app.use(attachOrg);
 
 // 브라우저용 공개 설정 (영상은 서버가 발급하는 presigned URL로만 접근 — 키 노출 없음)
 app.get('/api/public-config', (_req, res) => {
   res.json({ completionThreshold: config.completionThreshold });
 });
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// 로그인 화면 학교(테넌트) 선택용 — 활성 학교만 공개
+app.get('/api/orgs', async (_req, res) => {
+  const { data, error } = await supabase
+    .from('lms_orgs').select('slug,name').eq('active', true).order('sort', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ orgs: data || [] });
+});
 
 app.use('/api/auth', authRouter);
 app.use('/api/lectures', lecturesRouter);
@@ -64,9 +73,20 @@ async function seedAdmin() {
     return;
   }
   if (existing) return;
+
+  // 기본 학교(테넌트) 보장 후 그 학교 소속으로 관리자 생성 (org_id 는 NOT NULL)
+  let { data: org } = await supabase
+    .from('lms_orgs').select('id').eq('slug', config.admin.orgSlug).maybeSingle();
+  if (!org) {
+    const { data: created, error: oe } = await supabase
+      .from('lms_orgs').insert({ slug: config.admin.orgSlug, name: config.admin.orgName }).select('id').single();
+    if (oe) { console.error('[seed] 기본 학교 생성 실패:', oe.message); return; }
+    org = created;
+  }
+
   const hash = await bcrypt.hash(config.admin.password, 10);
   const { error: e2 } = await supabase.from('lms_teachers').insert({
-    username: config.admin.username, name: config.admin.name, password_hash: hash,
+    username: config.admin.username, name: config.admin.name, password_hash: hash, org_id: org.id,
   });
   if (e2) console.error('[seed] 관리자 생성 실패:', e2.message);
   else console.log(`[seed] 관리자 계정 생성됨 → 아이디: ${config.admin.username}`);

@@ -169,6 +169,24 @@ input[type=file] { padding: 9px 12px; height: auto; background: var(--surface-so
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lecture-item .meta { text-align: right; min-width: 96px; }
 
+/* ---------- section accordion ---------- */
+.section-block { background: var(--white); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
+.section-head {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 18px;
+  background: var(--surface-card); border: 0; cursor: pointer; text-align: left;
+  font: inherit; color: var(--ink); transition: background .15s;
+}
+.section-head:hover { background: var(--surface-strong); }
+.section-head .chev { flex: none; font-size: 13px; color: var(--muted); transition: transform .18s; }
+.section-block.open .section-head .chev { transform: rotate(90deg); }
+.section-head .sec-name { font-weight: 700; letter-spacing: -.01em; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.section-head .sec-meta { flex: none; color: var(--muted); font-size: 13px; font-weight: 600; }
+.section-body { display: none; padding: 12px; flex-direction: column; gap: 10px; }
+.section-block.open .section-body { display: flex; }
+/* 섹션 안에서는 카드가 한 단계 안쪽이라 테두리를 살짝 연하게 */
+.section-body .lecture-item { border-color: var(--hairline); }
+
 /* ---------- badges ---------- */
 .badge { display: inline-block; padding: 4px 11px; border-radius: var(--pill); font-size: 12px; font-weight: 600; }
 .badge.done { background: var(--teal); color: #eafff6; }

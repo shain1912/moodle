@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
+import { supabase } from './supabase.js';
 
 export function setSession(res, payload) {
   const token = jwt.sign(payload, config.jwtSecret, { expiresIn: `${config.sessionHours}h` });
@@ -30,6 +31,20 @@ export function authenticate(req, _res, next) {
   req.user = null;
   if (token) {
     try { req.user = jwt.verify(token, config.jwtSecret); } catch { /* 무효 토큰 무시 */ }
+  }
+  next();
+}
+
+// 구 세션 토큰(org 미포함) 호환: req.user 에 org(테넌트 id)가 없으면 DB에서 보충.
+// 신규 로그인 토큰은 org 를 담고 있어 이 조회를 건너뜀.
+export async function attachOrg(req, _res, next) {
+  const u = req.user;
+  if (u && u.sub && !u.org) {
+    try {
+      const table = u.role === 'teacher' ? 'lms_teachers' : 'lms_students';
+      const { data } = await supabase.from(table).select('org_id').eq('id', u.sub).maybeSingle();
+      if (data?.org_id) u.org = data.org_id;
+    } catch { /* 보충 실패 시 라우트에서 org 없음으로 처리 */ }
   }
   next();
 }

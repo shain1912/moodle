@@ -36,6 +36,9 @@ export const config = {
     username: (process.env.ADMIN_USERNAME || 'admin').trim(),
     password: process.env.ADMIN_PASSWORD || '',
     name: (process.env.ADMIN_NAME || '관리자').trim(),
+    // 최초 관리자가 속할 기본 학교(테넌트)
+    orgSlug: (process.env.DEFAULT_ORG_SLUG || 'gnu').trim(),
+    orgName: (process.env.DEFAULT_ORG_NAME || '경상국립대').trim(),
   },
 
   completionThreshold: parseFloat(process.env.COMPLETION_THRESHOLD || '90'),

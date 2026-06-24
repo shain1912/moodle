@@ -14,6 +14,13 @@ progressRouter.post('/:lectureId', requireStudent, async (req, res) => {
   const lectureId = req.params.lectureId;
   if (!UUID_RE.test(lectureId)) return res.status(400).json({ error: '잘못된 강의 ID 입니다.' });
 
+  // 본인 학교가 구독(활성)한 강의에만 진도 저장 허용
+  if (!req.user.org) return res.status(403).json({ error: '학교 정보가 없습니다. 다시 로그인해 주세요.' });
+  const { data: sub } = await supabase
+    .from('lms_org_lectures').select('id')
+    .eq('org_id', req.user.org).eq('lecture_id', lectureId).eq('active', true).maybeSingle();
+  if (!sub) return res.status(404).json({ error: '수강 대상 강의가 아닙니다.' });
+
   const newSeconds = Array.isArray(req.body.newSeconds) ? req.body.newSeconds : [];
   const lastPosition = Math.max(0, Number(req.body.lastPosition) || 0);
   const clientDuration = Math.max(0, Number(req.body.duration) || 0);

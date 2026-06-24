@@ -7,16 +7,22 @@ import { toCsv } from '../lib/csv.js';
 export const adminRouter = Router();
 adminRouter.use(requireTeacher); // 이 라우터 전체는 교사 전용
 
-// ── 학생 명단 조회
-adminRouter.get('/students', async (_req, res) => {
+// 이 라우터 전체에서 교사의 소속 학교(org)를 강제 — 누락 시 차단
+adminRouter.use((req, res, next) => {
+  if (!req.user?.org) return res.status(403).json({ error: '학교 정보가 없습니다. 다시 로그인해 주세요.' });
+  next();
+});
+
+// ── 학생 명단 조회 (본 학교만)
+adminRouter.get('/students', async (req, res) => {
   const { data, error } = await supabase
-    .from('lms_students').select('*')
+    .from('lms_students').select('*').eq('org_id', req.user.org)
     .order('team', { ascending: true, nullsFirst: false }).order('name', { ascending: true });
   if (error) return res.status(500).json({ error: error.message });
   res.json({ students: data });
 });
 
-// ── 학생 1명 추가/수정 (이름 기준 upsert)
+// ── 학생 1명 추가/수정 (학교 내 이름 기준 upsert)
 adminRouter.post('/students', async (req, res) => {
   const name = String(req.body.name || '').trim();
   const team = req.body.team ? String(req.body.team).trim() : null;
@@ -25,7 +31,7 @@ adminRouter.post('/students', async (req, res) => {
 
   const { data, error } = await supabase
     .from('lms_students')
-    .upsert({ name, team, pin, active: true }, { onConflict: 'name' })
+    .upsert({ name, team, pin, active: true, org_id: req.user.org }, { onConflict: 'org_id,name' })
     .select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ student: data });
@@ -46,13 +52,13 @@ adminRouter.post('/students/bulk', async (req, res) => {
     if (!name) continue;
     if (seen.has(name)) continue;
     seen.add(name);
-    rows.push({ name, team, active: true });
+    rows.push({ name, team, active: true, org_id: req.user.org });
   }
   if (!rows.length) {
     return res.status(400).json({ error: '등록할 행이 없습니다. (형식: 이름 또는 이름,팀)' });
   }
   const { data, error } = await supabase
-    .from('lms_students').upsert(rows, { onConflict: 'name' }).select();
+    .from('lms_students').upsert(rows, { onConflict: 'org_id,name' }).select();
   if (error) return res.status(500).json({ error: error.message });
   res.json({ count: data.length, students: data });
 });
@@ -67,37 +73,58 @@ adminRouter.patch('/students/:id', async (req, res) => {
   if (!Object.keys(patch).length) return res.status(400).json({ error: '수정할 내용이 없습니다.' });
 
   const { data, error } = await supabase
-    .from('lms_students').update(patch).eq('id', req.params.id).select().single();
+    .from('lms_students').update(patch).eq('id', req.params.id).eq('org_id', req.user.org).select().maybeSingle();
   if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: '학생을 찾을 수 없습니다.' });
   res.json({ student: data });
 });
 
-// ── 학생 삭제 (진도도 함께 삭제됨 — FK on delete cascade)
+// ── 학생 삭제 (진도도 함께 삭제됨 — FK on delete cascade). 본 학교 학생만.
 adminRouter.delete('/students/:id', async (req, res) => {
-  const { error } = await supabase.from('lms_students').delete().eq('id', req.params.id);
+  const { error } = await supabase
+    .from('lms_students').delete().eq('id', req.params.id).eq('org_id', req.user.org);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });
 
-// 진도 매트릭스 데이터 수집(대시보드/CSV 공용)
-async function buildMatrix() {
-  const [sRes, lRes, pRes] = await Promise.all([
-    supabase.from('lms_students').select('id,name,active,team').order('team', { ascending: true, nullsFirst: false }).order('name', { ascending: true }),
-    supabase.from('lms_lectures').select('id,title,order_index,duration_seconds').eq('active', true).order('order_index', { ascending: true }),
-    supabase.from('lms_progress').select('student_id,lecture_id,percent,completed,watched_seconds,updated_at'),
+// 진도 매트릭스 데이터 수집(대시보드/CSV 공용) — 본 학교(org)만
+async function buildMatrix(org) {
+  const [sRes, olRes] = await Promise.all([
+    supabase.from('lms_students').select('id,name,active,team').eq('org_id', org)
+      .order('team', { ascending: true, nullsFirst: false }).order('name', { ascending: true }),
+    supabase.from('lms_org_lectures').select('lecture_id,section,section_order,order_index').eq('org_id', org).eq('active', true)
+      .order('section_order', { ascending: true }).order('order_index', { ascending: true }),
   ]);
-  const firstErr = sRes.error || lRes.error || pRes.error;
-  if (firstErr) throw new Error('진도 데이터를 불러오지 못했습니다: ' + firstErr.message);
-  const students = sRes.data, lectures = lRes.data, progress = pRes.data;
+  if (sRes.error || olRes.error) throw new Error('진도 데이터를 불러오지 못했습니다: ' + (sRes.error || olRes.error).message);
+  const students = sRes.data || [];
+  const subs = olRes.data || [];
+
+  let lectures = [];
+  if (subs.length) {
+    const { data: lecs, error: le } = await supabase
+      .from('lms_lectures').select('id,title,duration_seconds').in('id', subs.map((s) => s.lecture_id));
+    if (le) throw new Error('강의 정보를 불러오지 못했습니다: ' + le.message);
+    const lmap = new Map((lecs || []).map((l) => [l.id, l]));
+    lectures = subs
+      .map((s) => { const l = lmap.get(s.lecture_id); return l ? { ...l, section: s.section, order_index: s.order_index } : null; })
+      .filter(Boolean);
+  }
+
   const pmap = new Map();
-  for (const p of progress || []) pmap.set(p.student_id + '|' + p.lecture_id, p);
-  return { students: students || [], lectures: lectures || [], pmap };
+  const sids = students.map((s) => s.id);
+  if (sids.length && lectures.length) {
+    const { data: progress } = await supabase
+      .from('lms_progress').select('student_id,lecture_id,percent,completed,watched_seconds,updated_at')
+      .in('student_id', sids);
+    for (const p of progress || []) pmap.set(p.student_id + '|' + p.lecture_id, p);
+  }
+  return { students, lectures, pmap };
 }
 
 // ── 진도 대시보드 (학생 × 강의 매트릭스)
-adminRouter.get('/dashboard', async (_req, res) => {
+adminRouter.get('/dashboard', async (req, res) => {
   try {
-    const { students, lectures, pmap } = await buildMatrix();
+    const { students, lectures, pmap } = await buildMatrix(req.user.org);
     const rows = students.map((s) => {
       const cells = lectures.map((l) => {
         const p = pmap.get(s.id + '|' + l.id);
@@ -119,9 +146,9 @@ adminRouter.get('/dashboard', async (_req, res) => {
 });
 
 // ── 진도 CSV 한 번에 다운로드 (납품 증빙용)
-adminRouter.get('/report.csv', async (_req, res) => {
+adminRouter.get('/report.csv', async (req, res) => {
   try {
-    const { students, lectures, pmap } = await buildMatrix();
+    const { students, lectures, pmap } = await buildMatrix(req.user.org);
 
     const headers = ['팀', '이름'];
     for (const l of lectures) {
