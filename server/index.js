@@ -55,7 +55,16 @@ app.use('/api/admin', adminRouter);
 app.use('/api', (_req, res) => res.status(404).json({ error: '없는 API 입니다.' }));
 
 // 정적 파일(프론트엔드)
-app.use(express.static(publicDir));
+//  - no-cache: 브라우저가 캐시는 보관하되 매번 서버에 재검증(ETag 비교)하도록 강제.
+//    배포(코드 변경) 시 학생이 강력 새로고침 없이 평범한 새로고침만으로 최신본을 받음.
+//    변경 없으면 304(아주 작음)라 비용/속도 영향 미미.
+app.use(express.static(publicDir, {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 
 // 공통 에러 핸들러
 app.use((err, _req, res, _next) => {
