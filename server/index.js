@@ -10,6 +10,7 @@ import { authenticate, attachOrg } from './auth.js';
 import { authRouter } from './routes/auth.js';
 import { lecturesRouter } from './routes/lectures.js';
 import { progressRouter } from './routes/progress.js';
+import { missionsRouter } from './routes/missions.js';
 import { adminRouter } from './routes/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ app.get('/api/orgs', async (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/lectures', lecturesRouter);
 app.use('/api/progress', progressRouter);
+app.use('/api/missions', missionsRouter);
 app.use('/api/admin', adminRouter);
 
 // API 404

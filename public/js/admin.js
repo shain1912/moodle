@@ -12,6 +12,7 @@ const tabs = {
   dash: { btn: 'tab-dash', panel: 'panel-dash', load: loadDashboard },
   lec: { btn: 'tab-lec', panel: 'panel-lec', load: loadLectures },
   stu: { btn: 'tab-stu', panel: 'panel-stu', load: loadStudents },
+  mission: { btn: 'tab-mission', panel: 'panel-mission', load: loadMissions },
 };
 function switchTab(key) {
   for (const [k, t] of Object.entries(tabs)) {
@@ -323,6 +324,125 @@ async function loadStudents() {
     body.appendChild(tr);
   });
 }
+
+// ───────────────────────── 미션 공지 관리 ─────────────────────────
+let editingMissionId = null;
+
+const mEls = {
+  round: () => document.getElementById('m-round'),
+  week: () => document.getElementById('m-week'),
+  title: () => document.getElementById('m-title'),
+  body: () => document.getElementById('m-body'),
+  due: () => document.getElementById('m-due'),
+  email: () => document.getElementById('m-email'),
+  msg: () => document.getElementById('m-msg'),
+  cancel: () => document.getElementById('btn-m-cancel'),
+};
+
+function resetMissionForm() {
+  editingMissionId = null;
+  mEls.round().value = '1';
+  mEls.week().value = '';
+  mEls.title().value = '';
+  mEls.body().value = '';
+  mEls.due().value = '';
+  mEls.email().value = 'sh.cho@pusan.ac.kr';
+  mEls.cancel().classList.add('hidden');
+  document.getElementById('btn-m-save').textContent = '등록 / 수정';
+}
+
+function fillMissionForm(m) {
+  editingMissionId = m.id;
+  mEls.round().value = String(m.round || 1);
+  mEls.week().value = m.week_label || '';
+  mEls.title().value = m.title || '';
+  mEls.body().value = m.body || '';
+  mEls.due().value = m.due_at ? new Date(m.due_at).toISOString().slice(0, 10) : '';
+  mEls.email().value = m.submit_email || '';
+  mEls.cancel().classList.remove('hidden');
+  document.getElementById('btn-m-save').textContent = '수정 저장';
+  document.getElementById('m-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+document.getElementById('btn-m-cancel').onclick = resetMissionForm;
+document.getElementById('btn-m-refresh').onclick = loadMissions;
+
+document.getElementById('btn-m-save').onclick = async () => {
+  const round = parseInt(mEls.round().value, 10) || 1;
+  const week_label = mEls.week().value.trim() || `${round}주차`;
+  const title = mEls.title().value.trim();
+  const body = mEls.body().value;
+  const due_at = mEls.due().value || null;
+  const submit_email = mEls.email().value.trim() || null;
+  const msg = mEls.msg();
+  msg.className = 'msg';
+  msg.textContent = '';
+  if (!title) { msg.className = 'msg error'; msg.textContent = '제목은 필수입니다.'; return; }
+  const payload = { round, week_label, title, body, due_at, submit_email };
+  try {
+    if (editingMissionId) {
+      await api(`/api/admin/missions/${editingMissionId}`, { method: 'PATCH', body: payload });
+      toast('미션이 수정되었습니다.', 'ok');
+    } else {
+      await api('/api/admin/missions', { method: 'POST', body: payload });
+      toast('미션이 등록되었습니다.', 'ok');
+    }
+    resetMissionForm();
+    loadMissions();
+  } catch (e) { msg.className = 'msg error'; msg.textContent = e.message; }
+};
+
+async function loadMissions() {
+  const { missions } = await api('/api/admin/missions');
+  const list = document.getElementById('m-list');
+  const empty = document.getElementById('m-empty');
+  document.getElementById('m-count').textContent = missions.length ? `(${missions.length})` : '';
+  list.innerHTML = '';
+  if (!missions.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  missions.forEach((m) => {
+    const item = document.createElement('div');
+    item.className = 'lecture-item';
+    item.style.cursor = 'default';
+    const due = m.due_at ? ' · 마감 ' + new Date(m.due_at).toISOString().slice(0, 10) : '';
+    const stateBadge = m.active
+      ? '<span class="badge prog" style="margin-right:6px">활성</span>'
+      : '<span class="badge none" style="margin-right:6px">비활성</span>';
+    item.innerHTML = `
+      <div class="idx">${escapeHtml(m.week_label || (m.round + '주차'))}</div>
+      <div class="body">
+        <div class="t">${stateBadge}${escapeHtml(m.title)}</div>
+        <div class="d">${escapeHtml((m.body || '').slice(0, 60))}${(m.body || '').length > 60 ? '…' : ''}${due}</div>
+      </div>
+      <div class="row">
+        <button class="btn sm ghost" data-edit>수정</button>
+        <button class="btn sm ghost" data-toggle>${m.active ? '비활성' : '활성'}</button>
+        <button class="btn sm danger" data-del>삭제</button>
+      </div>`;
+    const guard = (btn, fn) => async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try { await fn(); } catch (e) { toast(e.message, 'error'); } finally { btn.disabled = false; }
+    };
+    item.querySelector('[data-edit]').onclick = () => fillMissionForm(m);
+    const tg = item.querySelector('[data-toggle]');
+    tg.onclick = guard(tg, async () => {
+      await api(`/api/admin/missions/${m.id}`, { method: 'PATCH', body: { active: !m.active } });
+      await loadMissions();
+    });
+    const del = item.querySelector('[data-del]');
+    del.onclick = guard(del, async () => {
+      if (!confirm(`"${m.title}" 미션을 삭제할까요?`)) return;
+      await api(`/api/admin/missions/${m.id}`, { method: 'DELETE' });
+      toast('삭제되었습니다.', 'ok');
+      await loadMissions();
+    });
+    list.appendChild(item);
+  });
+}
+
+resetMissionForm();
 
 // 시작
 switchTab('dash');

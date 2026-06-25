@@ -20,8 +20,50 @@ const viewList = document.getElementById('view-list');
 const viewPlayer = document.getElementById('view-player');
 const listEl = document.getElementById('lecture-list');
 const emptyEl = document.getElementById('empty');
+const missionArea = document.getElementById('mission-area');
 
 let threshold = 90;
+
+// ───────────────────────── 미션 공지 ─────────────────────────
+function fmtDue(due) {
+  if (!due) return '';
+  const d = new Date(due);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function loadMissions() {
+  let data;
+  try { data = await api('/api/missions'); }
+  catch { missionArea.classList.add('hidden'); return; }
+
+  const missions = data?.missions || [];
+  if (!missions.length) { missionArea.classList.add('hidden'); missionArea.innerHTML = ''; return; }
+
+  const teamTag = data.team ? escapeHtml(data.team) : '{팀명}';
+  missionArea.innerHTML = `
+    <div class="section-title" style="margin-bottom:12px">📢 미션 공지 <span class="muted small">${missions.length}개</span></div>
+    <div class="mission-list">
+      ${missions.map((m) => {
+        const due = fmtDue(m.due_at);
+        const subject = `${teamTag}_${escapeHtml(m.week_label || (m.round + '주차'))}`;
+        const email = m.submit_email ? escapeHtml(m.submit_email) : '(메일 주소 미지정)';
+        return `
+        <div class="mission-card">
+          <div class="mission-head">
+            <span class="badge prog">${escapeHtml(m.week_label || (m.round + '주차'))}</span>
+            <span class="mission-title">${escapeHtml(m.title)}</span>
+            ${due ? `<span class="mission-due">마감 ${due}</span>` : ''}
+          </div>
+          ${m.body ? `<div class="mission-body">${escapeHtml(m.body)}</div>` : ''}
+          <div class="mission-submit">
+            📧 <b>제출 방법</b> — 메일 제목 「<b>${subject}</b>」 으로 <b>${email}</b> 에 보내세요.
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  missionArea.classList.remove('hidden');
+}
 
 // ───────────────────────── 목록 (섹션 그룹화 + 접기/펼치기) ─────────────────────────
 const SEC_LS = 'secopen_';
@@ -275,6 +317,7 @@ try {
   const cfg = await api('/api/public-config');
   if (cfg?.completionThreshold) threshold = cfg.completionThreshold;
 } catch {}
+loadMissions();
 try {
   await loadList();
 } catch (e) {

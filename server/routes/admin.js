@@ -184,3 +184,61 @@ adminRouter.get('/report.csv', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ───────────────────────── 미션 공지 관리 (본 학교만) ─────────────────────────
+
+// ── 미션 목록 (비활성 포함, 주차 순)
+adminRouter.get('/missions', async (req, res) => {
+  const { data, error } = await supabase
+    .from('lms_missions').select('*').eq('org_id', req.user.org)
+    .order('round', { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ missions: data });
+});
+
+// 요청 본문 → 미션 컬럼으로 정리(생성/수정 공용). 들어온 키만 반영.
+function readMissionPatch(body, { forInsert = false } = {}) {
+  const patch = {};
+  if ('round' in body) patch.round = parseInt(body.round, 10) || 1;
+  if ('week_label' in body) patch.week_label = String(body.week_label || '').trim();
+  if ('title' in body) patch.title = String(body.title || '').trim();
+  if ('body' in body) patch.body = String(body.body ?? '');
+  if ('due_at' in body) patch.due_at = body.due_at ? new Date(body.due_at).toISOString() : null;
+  if ('submit_email' in body) patch.submit_email = body.submit_email ? String(body.submit_email).trim() : null;
+  if ('active' in body) patch.active = !!body.active;
+  if (forInsert) {
+    if (!patch.round) patch.round = 1;
+    if (!patch.week_label) patch.week_label = `${patch.round}주차`;
+  }
+  return patch;
+}
+
+// ── 미션 생성
+adminRouter.post('/missions', async (req, res) => {
+  const patch = readMissionPatch(req.body, { forInsert: true });
+  if (!patch.title) return res.status(400).json({ error: '제목은 필수입니다.' });
+  const { data, error } = await supabase
+    .from('lms_missions').insert({ ...patch, org_id: req.user.org }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ mission: data });
+});
+
+// ── 미션 수정 (부분)
+adminRouter.patch('/missions/:id', async (req, res) => {
+  const patch = readMissionPatch(req.body);
+  if (!Object.keys(patch).length) return res.status(400).json({ error: '수정할 내용이 없습니다.' });
+  const { data, error } = await supabase
+    .from('lms_missions').update(patch)
+    .eq('id', req.params.id).eq('org_id', req.user.org).select().maybeSingle();
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: '미션을 찾을 수 없습니다.' });
+  res.json({ mission: data });
+});
+
+// ── 미션 삭제 (본 학교만)
+adminRouter.delete('/missions/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('lms_missions').delete().eq('id', req.params.id).eq('org_id', req.user.org);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
+});

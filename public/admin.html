@@ -17,10 +17,11 @@
   </div>
 
   <div class="container">
-    <div class="tabs" style="max-width:520px">
+    <div class="tabs" style="max-width:680px">
       <button id="tab-dash" class="active">📊 진도 대시보드</button>
       <button id="tab-lec">🎬 강의 관리</button>
       <button id="tab-stu">👥 학생 명단</button>
+      <button id="tab-mission">📢 미션</button>
     </div>
 
     <!-- ───── 진도 대시보드 ───── -->
@@ -105,6 +106,59 @@
               <tbody id="stu-body"></tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 미션 공지 ───── -->
+    <section id="panel-mission" class="hidden">
+      <div class="grid cols-2" style="grid-template-columns:1fr 1.3fr;margin-top:18px">
+        <div class="card">
+          <div class="section-title">📢 미션 작성 / 수정</div>
+          <div class="row" style="gap:10px">
+            <div style="flex:0 0 110px">
+              <label>라운드</label>
+              <select id="m-round">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </div>
+            <div style="flex:1">
+              <label>주차 라벨 (메일 제목용)</label>
+              <input type="text" id="m-week" placeholder="예: 1주차" />
+            </div>
+          </div>
+          <label>제목</label>
+          <input type="text" id="m-title" placeholder="예: AI 에이전트 툴 설치 & 첫 웹" />
+          <label>본문 (안내 내용)</label>
+          <textarea id="m-body" rows="5" placeholder="미션 설명을 적으세요. 줄바꿈은 그대로 보입니다."></textarea>
+          <div class="row" style="gap:10px">
+            <div style="flex:1">
+              <label>마감일 (선택)</label>
+              <input type="date" id="m-due" />
+            </div>
+            <div style="flex:1">
+              <label>제출 메일</label>
+              <input type="text" id="m-email" placeholder="sh.cho@pusan.ac.kr" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:16px;gap:10px">
+            <button class="btn primary" id="btn-m-save">등록 / 수정</button>
+            <button class="btn ghost hidden" id="btn-m-cancel">새로 작성</button>
+          </div>
+          <div id="m-msg" class="msg"></div>
+          <p class="small muted" style="margin-top:8px">
+            ※ 학생 화면에는 제출 안내가 「<b>팀명_주차</b>」 제목으로 제출 메일에 보내라고 표시됩니다.
+          </p>
+        </div>
+        <div class="card">
+          <div class="row between">
+            <div class="section-title" style="margin:0">📋 등록된 미션 <span class="muted small" id="m-count"></span></div>
+            <button class="btn ghost sm" id="btn-m-refresh">새로고침</button>
+          </div>
+          <div class="lecture-list" id="m-list" style="margin-top:12px"></div>
+          <p id="m-empty" class="muted hidden" style="text-align:center;padding:30px">아직 등록된 미션이 없습니다.</p>
         </div>
       </div>
     </section>

@@ -193,6 +193,19 @@ input[type=file] { padding: 9px 12px; height: auto; background: var(--surface-so
 .badge.prog { background: #ece6fb; color: #5a3aa8; }
 .badge.none { background: var(--surface-card); color: var(--muted); }
 
+/* ---------- missions (공지) ---------- */
+#mission-area { margin-bottom: 28px; }
+.mission-list { display: flex; flex-direction: column; gap: 12px; }
+.mission-card { background: var(--white); border: 1px solid var(--hairline);
+  border-left: 4px solid var(--pink); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 16px 18px; }
+.mission-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mission-title { font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.mission-due { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--warning); }
+.mission-body { margin-top: 10px; color: var(--body); font-size: 14px; white-space: pre-wrap; }
+.mission-submit { margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--surface-soft); border: 1px dashed var(--hairline-strong);
+  font-size: 13px; color: var(--body); }
+
 /* ---------- progress bar ---------- */
 .bar { height: 8px; border-radius: var(--pill); background: var(--surface-strong); overflow: hidden; margin-top: 8px; }
 .bar > span { display: block; height: 100%; border-radius: var(--pill);
