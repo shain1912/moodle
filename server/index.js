@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.js';
 import { lecturesRouter } from './routes/lectures.js';
 import { progressRouter } from './routes/progress.js';
 import { missionsRouter } from './routes/missions.js';
+import { materialsRouter } from './routes/materials.js';
 import { adminRouter } from './routes/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/lectures', lecturesRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/missions', missionsRouter);
+app.use('/api/materials', materialsRouter);
 app.use('/api/admin', adminRouter);
 
 // API 404

@@ -1,4 +1,4 @@
-import { api, getMe, logout, fmtTime, toast, escapeHtml } from './api.js';
+import { api, getMe, logout, fmtTime, fmtSize, toast, escapeHtml } from './api.js';
 
 const me = await getMe();
 if (!me) location.href = '/';
@@ -21,8 +21,47 @@ const viewPlayer = document.getElementById('view-player');
 const listEl = document.getElementById('lecture-list');
 const emptyEl = document.getElementById('empty');
 const missionArea = document.getElementById('mission-area');
+const materialArea = document.getElementById('material-area');
 
 let threshold = 90;
+
+// ───────────────────────── 강의자료 다운로드 ─────────────────────────
+async function loadMaterials() {
+  let data;
+  try { data = await api('/api/materials'); }
+  catch { materialArea.classList.add('hidden'); return; }
+
+  const materials = data?.materials || [];
+  if (!materials.length) { materialArea.classList.add('hidden'); materialArea.innerHTML = ''; return; }
+
+  materialArea.innerHTML = `
+    <div class="section-title" style="margin-bottom:12px">📄 강의자료 <span class="muted small">${materials.length}개</span></div>
+    <div class="material-list">
+      ${materials.map((m) => `
+        <div class="material-item">
+          <div class="mi-icon">📄</div>
+          <div class="mi-body">
+            <div class="mi-title">${escapeHtml(m.title)}</div>
+            <div class="mi-meta muted small">${escapeHtml(m.filename || '')}${m.size_bytes ? ' · ' + fmtSize(m.size_bytes) : ''}</div>
+          </div>
+          <button class="btn sm primary" data-dl="${m.id}">⬇ 다운로드</button>
+        </div>`).join('')}
+    </div>`;
+  materialArea.querySelectorAll('[data-dl]').forEach((btn) => {
+    btn.onclick = async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = '준비 중…';
+      try {
+        const { url } = await api(`/api/materials/${btn.dataset.dl}/download`);
+        window.location.href = url; // attachment 응답이라 바로 다운로드됨
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = orig; }
+    };
+  });
+  materialArea.classList.remove('hidden');
+}
 
 // ───────────────────────── 미션 공지 ─────────────────────────
 function fmtDue(due) {
@@ -318,6 +357,7 @@ try {
   if (cfg?.completionThreshold) threshold = cfg.completionThreshold;
 } catch {}
 loadMissions();
+loadMaterials();
 try {
   await loadList();
 } catch (e) {

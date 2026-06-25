@@ -17,11 +17,12 @@
   </div>
 
   <div class="container">
-    <div class="tabs" style="max-width:680px">
+    <div class="tabs" style="max-width:820px">
       <button id="tab-dash" class="active">📊 진도 대시보드</button>
       <button id="tab-lec">🎬 강의 관리</button>
       <button id="tab-stu">👥 학생 명단</button>
       <button id="tab-mission">📢 미션</button>
+      <button id="tab-material">📄 자료실</button>
     </div>
 
     <!-- ───── 진도 대시보드 ───── -->
@@ -159,6 +160,34 @@
           </div>
           <div class="lecture-list" id="m-list" style="margin-top:12px"></div>
           <p id="m-empty" class="muted hidden" style="text-align:center;padding:30px">아직 등록된 미션이 없습니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 자료실 (강의자료 PDF) ───── -->
+    <section id="panel-material" class="hidden">
+      <div class="grid cols-2" style="grid-template-columns:1fr 1.3fr;margin-top:18px">
+        <div class="card">
+          <div class="section-title">📄 강의자료 업로드</div>
+          <label>자료 제목</label>
+          <input type="text" id="mat-title" placeholder="예: 1주차 교재 (PDF)" />
+          <label>파일 (PDF 등)</label>
+          <input type="file" id="mat-file" accept=".pdf,application/pdf" />
+          <div id="mat-fileinfo" class="small muted" style="margin-top:6px"></div>
+          <button class="btn primary block" id="btn-mat-upload" style="margin-top:16px">업로드</button>
+          <div class="progress-line hidden" id="mat-progress"><span></span></div>
+          <div id="mat-msg" class="msg"></div>
+          <p class="small muted" style="margin-top:8px">
+            ※ 업로드한 자료는 학생 강의실 상단 「강의자료」에서 다운로드됩니다. 웹 업로드가 안 되면 R2 CORS(PUT 허용)를 확인하세요.
+          </p>
+        </div>
+        <div class="card">
+          <div class="row between">
+            <div class="section-title" style="margin:0">📚 등록된 자료 <span class="muted small" id="mat-count"></span></div>
+            <button class="btn ghost sm" id="btn-mat-refresh">새로고침</button>
+          </div>
+          <div class="lecture-list" id="mat-list" style="margin-top:12px"></div>
+          <p id="mat-empty" class="muted hidden" style="text-align:center;padding:30px">아직 등록된 자료가 없습니다.</p>
         </div>
       </div>
     </section>

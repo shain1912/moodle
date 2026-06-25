@@ -44,6 +44,17 @@ export function createPlaybackUrl(key) {
   });
 }
 
+// 다운로드용 presigned GET URL — Content-Disposition: attachment 로 강제 다운로드(파일명 지정)
+export function createDownloadUrl(key, filename) {
+  const safe = String(filename || 'file').replace(/["\r\n]/g, '_');
+  const cmd = new GetObjectCommand({
+    Bucket: config.r2.bucket,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(safe)}`,
+  });
+  return getSignedUrl(client(), cmd, { expiresIn: config.signedPlayTtl });
+}
+
 export function deleteObject(key) {
   return client().send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: key }));
 }

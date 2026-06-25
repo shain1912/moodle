@@ -13,6 +13,7 @@ const tabs = {
   lec: { btn: 'tab-lec', panel: 'panel-lec', load: loadLectures },
   stu: { btn: 'tab-stu', panel: 'panel-stu', load: loadStudents },
   mission: { btn: 'tab-mission', panel: 'panel-mission', load: loadMissions },
+  material: { btn: 'tab-material', panel: 'panel-material', load: loadMaterials },
 };
 function switchTab(key) {
   for (const [k, t] of Object.entries(tabs)) {
@@ -443,6 +444,120 @@ async function loadMissions() {
 }
 
 resetMissionForm();
+
+// ───────────────────────── 자료실 (강의자료) ─────────────────────────
+const matFile = document.getElementById('mat-file');
+const matInfo = document.getElementById('mat-fileinfo');
+const matMsg = document.getElementById('mat-msg');
+const matProg = document.getElementById('mat-progress');
+
+matFile.addEventListener('change', () => {
+  const f = matFile.files[0];
+  matInfo.textContent = f ? `${f.name} · ${fmtSize(f.size)}` : '';
+  if (f && !document.getElementById('mat-title').value.trim()) {
+    document.getElementById('mat-title').value = f.name.replace(/\.[^.]+$/, '');
+  }
+});
+
+document.getElementById('btn-mat-refresh').onclick = loadMaterials;
+document.getElementById('btn-mat-upload').onclick = uploadMaterial;
+
+async function uploadMaterial() {
+  const title = document.getElementById('mat-title').value.trim();
+  const file = matFile.files[0];
+  matMsg.className = 'msg';
+  matMsg.textContent = '';
+  if (!title) { matMsg.className = 'msg error'; matMsg.textContent = '자료 제목을 입력하세요.'; return; }
+  if (!file) { matMsg.className = 'msg error'; matMsg.textContent = '파일을 선택하세요.'; return; }
+
+  const btn = document.getElementById('btn-mat-upload');
+  btn.disabled = true;
+  matProg.classList.remove('hidden');
+  const bar = matProg.firstElementChild;
+  if (bar) bar.style.width = '0%';
+  const setBar = (frac) => { if (bar) bar.style.width = Math.round(frac * 100) + '%'; };
+
+  try {
+    matMsg.textContent = '업로드 준비 중…';
+    const { key, url } = await api('/api/materials/upload-url', { method: 'POST', body: { filename: file.name } });
+
+    matMsg.textContent = '업로드 중…';
+    await xhrPut(url, file, setBar);
+
+    matMsg.textContent = '자료 등록 중…';
+    await api('/api/materials', { method: 'POST', body: {
+      title, key, filename: file.name, sizeBytes: file.size, mimeType: file.type || 'application/pdf',
+    }});
+
+    toast('자료가 업로드되었습니다.', 'ok');
+    document.getElementById('mat-title').value = '';
+    matFile.value = '';
+    matInfo.textContent = '';
+    matMsg.className = 'msg ok';
+    matMsg.textContent = '완료!';
+    setTimeout(() => { matProg.classList.add('hidden'); matMsg.textContent = ''; }, 1500);
+    loadMaterials();
+  } catch (e) {
+    matMsg.className = 'msg error';
+    matMsg.textContent = e.message;
+    matProg.classList.add('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadMaterials() {
+  const { materials } = await api('/api/materials/all');
+  const list = document.getElementById('mat-list');
+  const empty = document.getElementById('mat-empty');
+  document.getElementById('mat-count').textContent = materials.length ? `(${materials.length})` : '';
+  list.innerHTML = '';
+  if (!materials.length) { empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  materials.forEach((m, i) => {
+    const item = document.createElement('div');
+    item.className = 'lecture-item';
+    item.style.cursor = 'default';
+    const stateBadge = m.active
+      ? ''
+      : '<span class="badge none" style="margin-right:6px">비활성</span>';
+    item.innerHTML = `
+      <div class="idx">${i + 1}</div>
+      <div class="body">
+        <div class="t">${stateBadge}${escapeHtml(m.title)}</div>
+        <div class="d">${escapeHtml(m.filename || '')} · ${fmtSize(m.size_bytes)}</div>
+      </div>
+      <div class="row">
+        <button class="btn sm ghost" data-dl>다운로드</button>
+        <button class="btn sm ghost" data-toggle>${m.active ? '비활성' : '활성'}</button>
+        <button class="btn sm danger" data-del>삭제</button>
+      </div>`;
+    const guard = (btn, fn) => async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try { await fn(); } catch (e) { toast(e.message, 'error'); } finally { btn.disabled = false; }
+    };
+    const dl = item.querySelector('[data-dl]');
+    dl.onclick = guard(dl, async () => {
+      const { url } = await api(`/api/materials/${m.id}/download`);
+      window.location.href = url;
+    });
+    const tg = item.querySelector('[data-toggle]');
+    tg.onclick = guard(tg, async () => {
+      await api(`/api/materials/${m.id}`, { method: 'PATCH', body: { active: !m.active } });
+      await loadMaterials();
+    });
+    const del = item.querySelector('[data-del]');
+    del.onclick = guard(del, async () => {
+      if (!confirm(`"${m.title}" 자료를 삭제할까요? (파일도 함께 삭제됩니다)`)) return;
+      await api(`/api/materials/${m.id}`, { method: 'DELETE' });
+      toast('삭제되었습니다.', 'ok');
+      await loadMaterials();
+    });
+    list.appendChild(item);
+  });
+}
 
 // 시작
 switchTab('dash');
